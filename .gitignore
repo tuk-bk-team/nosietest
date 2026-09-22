@@ -1,1 +1,6 @@
 .DS_Store
+
+# 실험용 개인 사진/결과 이미지는 기본적으로 커밋하지 않음
+backend/experiments/noise_test_results/
+backend/experiments/*.png
+backend/experiments/*.jpg
