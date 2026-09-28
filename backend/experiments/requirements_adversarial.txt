@@ -1,0 +1,6 @@
+torch
+torchvision
+facenet-pytorch
+scikit-image
+pillow
+numpy
