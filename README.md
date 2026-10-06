@@ -21,3 +21,25 @@
 - [ ] **상용 API 검증**: AWS Rekognition `CompareFaces` 등으로 블랙박스 상용 시스템 대상 추가 검증
 - [ ] **워터마킹 기능**: 적대적 섭동 외에 워터마킹 삽입 기능은 아직 미구현
 - [ ] **GitHub 정리**: `.gitignore`에 가상환경/캐시 폴더 제외 설정, 최신 백엔드 코드 커밋/푸시 마무리
+
+## LowKey 논문과의 비교
+
+이 프로젝트의 앙상블 공격은 LowKey(Cherepanova et al., ICLR 2021)의 핵심 원리(앙상블 공격 + 가우시안 스무딩 견고성)를 가져와 구현했지만, 세부적으로는 다음과 같은 차이가 있습니다.
+
+| 항목 | LowKey (원 논문) | 본 프로젝트 |
+|---|---|---|
+| 앙상블 모델 수/다양성 | 4개, 서로 다른 아키텍처(IR-152, IR-50, ResNet-152, ResNet-50) × ArcFace/CosFace 헤드, MS-Celeb-1M으로 학습 | 2개, 같은 아키텍처(InceptionResnetV1) — 학습 데이터만 다름(vggface2 vs casia-webface) |
+| 손실 함수 | 특징 공간 L2 거리 − LPIPS(지각적 유사도) 페널티 | 코사인 유사도 합 (LPIPS 없음) |
+| 가우시안 블러 견고성 | σ=3, window=7 — 블러 적용/미적용 둘 다에 대해 공격 | σ=3.0, window=7 — 동일하게 구현 |
+| 섭동 크기 제한 | 고정 epsilon 없음 — 사진마다 다른 크기로 수렴할 때까지 | epsilon으로 고정 제한 (보통 0.03~0.05) + `target_cosine` 조기종료(본 프로젝트만의 추가 기능) |
+| 최적화 | signed gradient ascent, 50 iteration, lr 0.0025 | signed gradient descent, 유사한 구조 |
+| 얼굴 검출/정렬 | 미분 가능한 얼굴 검출+정렬 파이프라인 (아무 크기/비율 사진 지원) | 별도 검출 파이프라인 없이 얼굴 영역을 고정 리사이즈 |
+| 상용 API 검증 | Amazon Rekognition(순위-1 정확도 0.6%), Microsoft Azure(0.1%)까지 실제 검증 | 아직 미검증 (AWS Rekognition 테스트 예정) |
+| PhotoGuard 결합 | 없음 (LowKey는 2021년 논문, PhotoGuard는 이후 별도 연구) | 본 프로젝트만의 추가 — LowKey에는 없는 조합 |
+
+**전이성(transferability) 검증 결과**: 공격에 사용하지 않은 모델(VGG-Face, ArcFace, SFace)로 `deepface`를 이용해 교차 검증한 결과, SFace는 방어에 성공했지만 VGG-Face와 ArcFace는 여전히 동일인으로 인식했습니다. 이는 본 프로젝트의 앙상블이 LowKey보다 아키텍처 다양성이 부족한 것(1종류 vs 4종류)과 직접적으로 연관된 한계로 보입니다.
+
+**요약**: 본 프로젝트는 LowKey의 핵심 원리를 차용하되, (1) PhotoGuard를 결합해 생성형 AI 편집 방어까지 확장했고, (2) 앙상블 다양성과 상용 API 검증은 리소스 제약으로 축소된 버전입니다.
+
+참고 문헌: Cherepanova, V. et al. "LowKey: Leveraging Adversarial Attacks to Protect Social Media Users from Facial Recognition." ICLR 2021. (https://arxiv.org/abs/2101.07922)
+EOF
