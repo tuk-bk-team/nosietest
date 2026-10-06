@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 사진 편집 파이프라인과 방어 기법</title>
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --card: #141414;
+    --card-border: #262626;
+    --text: #f5f5f5;
+    --muted: #a3a3a3;
+    --muted2: #737373;
+    --accent: #10b981;
+    --accent-soft: rgba(16, 185, 129, 0.12);
+    --blue: #60a5fa;
+    --blue-soft: rgba(96, 165, 250, 0.12);
+    --red: #f87171;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Apple SD Gothic Neo", "Malgun Gothic", "Pretendard", -apple-system,
+      BlinkMacSystemFont, "Segoe UI", sans-serif;
+    height: 100%;
+    overflow: hidden;
+  }
+  .deck {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+  }
+  .slide {
+    position: absolute;
+    inset: 0;
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 6vh 8vw;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+  }
+  .slide.active {
+    display: flex;
+    opacity: 1;
+  }
+  .slide-inner {
+    width: 100%;
+    max-width: 1080px;
+  }
+  .eyebrow {
+    color: var(--accent);
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+  h1 {
+    font-size: 2.6rem;
+    line-height: 1.3;
+    margin: 0 0 18px 0;
+    font-weight: 800;
+  }
+  h2 {
+    font-size: 2rem;
+    line-height: 1.35;
+    margin: 0 0 28px 0;
+    font-weight: 800;
+  }
+  .subtitle {
+    color: var(--muted);
+    font-size: 1.15rem;
+    line-height: 1.6;
+    margin-bottom: 8px;
+  }
+  p.lead {
+    color: var(--muted);
+    font-size: 1.15rem;
+    line-height: 1.7;
+    max-width: 760px;
+  }
+  .badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    border: 1px solid var(--card-border);
+    color: var(--muted);
+    margin-right: 8px;
+  }
+
+  /* Title slide */
+  .title-slide h1 { font-size: 3.2rem; }
+  .title-meta {
+    margin-top: 40px;
+    color: var(--muted2);
+    font-size: 0.95rem;
+  }
+
+  /* two-column */
+  .cols {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 28px;
+    width: 100%;
+    margin-top: 10px;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: 16px;
+    padding: 28px;
+  }
+  .card h3 {
+    margin: 0 0 12px 0;
+    font-size: 1.25rem;
+  }
+  .card p {
+    color: var(--muted);
+    font-size: 0.98rem;
+    line-height: 1.65;
+    margin: 0;
+  }
+  .card.accent { border-color: rgba(16,185,129,0.4); background: linear-gradient(180deg, var(--accent-soft), transparent); }
+  .card.blue { border-color: rgba(96,165,250,0.4); background: linear-gradient(180deg, var(--blue-soft), transparent); }
+
+  /* pipeline diagram */
+  .pipeline {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    width: 100%;
+    margin-top: 24px;
+    flex-wrap: wrap;
+  }
+  .step {
+    flex: 1;
+    min-width: 150px;
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: 14px;
+    padding: 20px 16px;
+    text-align: center;
+    position: relative;
+  }
+  .step .num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: #262626;
+    color: var(--muted);
+    font-size: 0.8rem;
+    font-weight: 700;
+    margin-bottom: 10px;
+  }
+  .step .name {
+    font-weight: 700;
+    font-size: 1.02rem;
+    margin-bottom: 6px;
+  }
+  .step .desc {
+    color: var(--muted);
+    font-size: 0.85rem;
+    line-height: 1.5;
+  }
+  .step.hit {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent) inset, 0 0 24px rgba(16,185,129,0.15);
+    background: var(--accent-soft);
+  }
+  .step.hit .num { background: var(--accent); color: #04120b; }
+  .arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    color: var(--muted2);
+    font-size: 1.4rem;
+    flex: 0 0 auto;
+  }
+  .hit-tag {
+    position: absolute;
+    top: -12px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--accent);
+    color: #04120b;
+    font-size: 0.7rem;
+    font-weight: 800;
+    padding: 3px 10px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+
+  /* table */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 16px;
+    font-size: 0.95rem;
+  }
+  th, td {
+    text-align: left;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--card-border);
+  }
+  th {
+    color: var(--muted);
+    font-weight: 700;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  td { color: var(--text); }
+  td.muted { color: var(--muted); }
+  tr:last-child td { border-bottom: none; }
+
+  .status-yes { color: var(--accent); font-weight: 700; }
+  .status-no { color: var(--red); font-weight: 700; }
+
+  /* roadmap */
+  .roadmap {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-top: 20px;
+  }
+  .road-item {
+    display: flex;
+    gap: 18px;
+    align-items: flex-start;
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: 14px;
+    padding: 18px 22px;
+  }
+  .road-item .step-num {
+    flex: 0 0 auto;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: #1f1f1f;
+    border: 1px solid var(--card-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    color: var(--muted);
+  }
+  .road-item.done .step-num { background: var(--accent); color: #04120b; border-color: var(--accent); }
+  .road-item h4 { margin: 0 0 4px 0; font-size: 1.05rem; }
+  .road-item p { margin: 0; color: var(--muted); font-size: 0.92rem; line-height: 1.55; }
+
+  /* footer / nav */
+  .nav {
+    position: fixed;
+    bottom: 22px;
+    right: 28px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    z-index: 10;
+  }
+  .nav button {
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    color: var(--text);
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .nav button:hover { border-color: var(--accent); color: var(--accent); }
+  .counter {
+    color: var(--muted2);
+    font-size: 0.85rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .progress {
+    position: fixed;
+    top: 0; left: 0;
+    height: 3px;
+    background: var(--accent);
+    transition: width 0.25s ease;
+    z-index: 10;
+  }
+
+  ul.simple { color: var(--muted); font-size: 1.05rem; line-height: 1.9; padding-left: 22px; margin: 0; }
+  ul.simple li::marker { color: var(--accent); }
+
+  .small-note { color: var(--muted2); font-size: 0.85rem; margin-top: 18px; }
+</style>
+</head>
+<body>
+
+<div class="progress" id="progress"></div>
+<div class="deck" id="deck">
+
+  <!-- 1. Title -->
+  <section class="slide active title-slide">
+    <div class="slide-inner">
+      <div class="eyebrow">딥페이크 방지 이미지 변환 서비스</div>
+      <h1>AI는 사진을 어떻게<br>"알아보고" 또 "편집"하는가</h1>
+      <p class="subtitle">얼굴 인식 회피(LowKey / Fawkes)와 생성모델 방해(PhotoGuard) 비교</p>
+      <div class="title-meta">캡스톤 프로젝트 · 적대적 섭동(Adversarial Perturbation) 기술 정리</div>
+    </div>
+  </section>
+
+  <!-- 2. Agenda -->
+  <section class="slide">
+    <div class="slide-inner">
+      <div class="eyebrow">Agenda</div>
+      <h2>오늘 정리할 내용</h2>
+      <ul class="simple">
+        <li>왜 "얼굴 인식"과 "이미지 생성/편집"을 나눠서 생각해야 하는가</li>
+        <li>얼굴 인식 파이프라인 4단계와 LowKey/Fawkes의 공격 지점</li>
+        <li>생성·편집(디퓨전) 파이프라인 4단계와 PhotoGuard의 공격 지점</li>
+        <li>두 기법의 비교, 그리고 우리가 지금까지 구현한 부분</li>
+        <li>파라미터가 결과에 미치는 영향 &amp; 앞으로 남은 단계</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 3. Why split -->
+  <section class="slide">
+    <div class="slide-inner">
+      <div class="eyebrow">핵심 전제</div>
+      <h2>"인식"과 "편집"은 서로 다른 AI입니다</h2>
+      <p class="lead">하나의 파이프라인에 인식→추론→생성 단계가 순서대로 있는 게 아니라,<br>
+      애초에 목적과 구조가 완전히 다른 두 개의 신경망 파이프라인이 존재합니다.</p>
+      <div class="cols">
+        <div class="card accent">
+          <h3>🔍 얼굴 인식 AI</h3>
+          <p>"이 사진 속 인물이 누구인가?"를 판단. 사진을 벡터(숫자)로 바꾼 뒤 데이터베이스와 비교. Amazon Rekognition, Azure Face 같은 상용 서비스가 여기 해당.</p>
+        </div>
+        <div class="card blue">
+          <h3>🎨 생성·편집 AI</h3>
+          <p>"이 사진을 다르게 바꿔줘"를 수행. Stable Diffusion 같은 디퓨전 모델이 잠재 공간에서 이미지를 새로 그려냄. 딥페이크 합성·인페인팅이 여기 해당.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. Face recognition pipeline -->
+  <section class="slide">
+    <div class="slide-inner">
+      <div class="eyebrow">파이프라인 A · 얼굴 인식</div>
+      <h2>검출 → 정렬 → 특징 추출 → 매칭</h2>
+      <div class="pipeline">
+        <div class="step"><div class="num">1</div><div class="name">얼굴 검출</div><div class="desc">사진에서 얼굴 위치를 찾는다</div></div>
+        <div class="arrow">→</div>
+        <div class="step"><div class="num">2</div><div class="name">얼굴 정렬</div><div class="desc">정면 기준으로 잘라내고 각도 보정</div></div>
+        <div class="arrow">→</div>
+        <div class="step hit"><span class="hit-tag">LowKey / Fawkes 공격 지점</span><div class="num">3</div><div class="name">특징 추출</div><div class="desc">신경망에 통과시켜 벡터(임베딩) 생성</div></div>
+        <div class="arrow">→</div>
+        <div class="step"><div class="num">4</div><div class="name">매칭 / 식별</div><div class="desc">벡터를 비교해 "누구인지" 판단</div></div>
+      </div>
+      <p class="small-note">픽셀을 미세하게 바꿔 3번 단계의 벡터가 엉뚱한 곳으로 튀게 만들면, 4번 매칭이 자동으로 실패합니다.</p>
+    </div>
+  </section>
+
+  <!-- 5. Generation/editing pipeline -->
+  <section class="slide">
+    <div class="slide-inner">
+      <div class="eyebrow">파이프라인 B · 생성 / 편집 (디퓨전 모델)</div>
+      <h2>인코딩 → 조건 결합 → 디노이징 → 디코딩</h2>
+      <div class="pipeline">
+        <div class="step hit"><span class="hit-tag">PhotoGuard 공격 지점</span><div class="num">1</div><div class="name">인코딩</div><div class="desc">이미지를 잠재 공간(latent)으로 압축</div></div>
+        <div class="arrow">→</div>
+        <div class="step"><div class="num">2</div><div class="name">조건 결합</div><div class="desc">"이렇게 바꿔줘" 텍스트 지시 결합</div></div>
+        <div class="arrow">→</div>
+        <div class="step"><div class="num">3</div><div class="name">디노이징/확산</div><div class="desc">잠재 공간에서 여러 단계로 이미지 변형</div></div>
+        <div class="arrow">→</div>
+        <div class="step"><div class="num">4</div><div class="name">디코딩</div><div class="desc">최종 잠재값을 픽셀 이미지로 복원</div></div>
+      </div>
+      <p class="small-note">출발점인 잠재 표현 자체를 망가뜨려 놓으면, 어떤 편집 지시가 들어와도 결과물이 깨져서 나옵니다.</p>
+    </div>
+  </section>
+
+  <!-- 6. Comparison table -->
+  <section class="slide">
+    <div class="slide-inner">
+      <div class="eyebrow">비교</div>
+      <h2>LowKey/Fawkes vs PhotoGuard/MetaCloak-JPEG</h2>
+      <table>
+        <tr>
+          <th></th>
+          <th>LowKey / Fawkes</th>
+          <th>PhotoGuard / MetaCloak-JPEG</th>
+        </tr>
+        <tr>
+          <td class="muted">겨냥하는 AI</td>
+          <td>얼굴 인식(식별) 시스템</td>
+          <td>생성·편집(디퓨전) 모델</td>
+        </tr>
+        <tr>
+          <td class="muted">개입 단계</td>
+          <td>특징 추출(임베딩) 단계</td>
+          <td>인코딩(잠재공간 변환) 단계</td>
+        </tr>
+        <tr>
+          <td class="muted">공격 목표</td>
+          <td>벡터를 원본에서 최대한 멀어지게</td>
+          <td>잠재 표현을 목표 방향으로 왜곡</td>
+        </tr>
+        <tr>
+          <td class="muted">막는 것</td>
+          <td>"이 사람이 누구인지" 매칭 실패</td>
+          <td>편집·합성 결과물 자체가 깨짐</td>
+        </tr>
+        <tr>
+          <td class="muted">시점</td>
+          <td>추론(inference) 시점 회피</td>
+          <td>편집 시도 시점 방해</td>
+        </tr>
+      </table>
+    </div>
+  </section>
+
+  <!-- 7. What we've built -->
+  <section class="slide">
+    <div class="slide-inner">
+      <div class="eyebrow">지금까지 구현한 것</div>
+      <h2>얼굴 인식 파이프라인 · 특징 추출 단계 공격</h2>
+      <div class="cols">
+        <div class="card accent">
+          <h3>✅ 적대적 섭동</h3>
+          <p>사전 훈련된 얼굴 임베딩 모델(FaceNet / face-api.js)에 gradient 기반 signed ascent를 적용해, 벡터를 원본에서 멀어지게 함. 파이썬 스크립트와 브라우저 데모 둘 다 구현.</p>
+        </div>
+        <div class="card accent">
+          <h3>✅ 가우시안 스무딩</h3>
+          <p>gradient에 블러를 적용해 섭동을 부드럽게 만들어 더 자연스럽고 노이즈 제거 필터에도 강하게 함(LowKey 논문 6.2절 재현).</p>
+        </div>
+      </div>
+      <p class="small-note">단일 모델 기준 실험 결과: 코사인 유사도 1.0 → 0.19, PSNR 37dB (육안 구분 거의 불가)</p>
+    </div>
+  </section>
+
+  <!-- 8. Parameters -->
+  <section class="slide">
+    <div class="slide-inner">
+      <div class="eyebrow">파라미터별 영향</div>
+      <h2>값이 크면 강해지지만, 눈에도 잘 띕니다</h2>
+      <table>
+        <tr>
+          <th>파라미터</th>
+          <th>의미</th>
+          <th>값이 클 때</th>
+          <th>값이 작을 때</th>
+        </tr>
+        <tr>
+          <td>epsilon</td>
+          <td class="muted">픽셀 변화 한도</td>
+          <td>보호 강함 · 눈에 띔</td>
+          <td>안 보임 · 보호 약함</td>
+        </tr>
+        <tr>
+          <td>step_size</td>
+          <td class="muted">한 스텝당 이동량</td>
+          <td>빨리 수렴 · 거칠어짐</td>
+          <td>느리게 수렴</td>
+        </tr>
+        <tr>
+          <td>steps</td>
+          <td class="muted">반복 횟수</td>
+          <td>충분히 최적화 (수렴 후엔 효과 없음)</td>
+          <td>덜 최적화 · 보호 약함</td>
+        </tr>
+        <tr>
+          <td>가우시안 스무딩</td>
+          <td class="muted">섭동 후처리</td>
+          <td>자연스럽고 필터에 강함</td>
+          <td>날카롭고 거칠어짐</td>
+        </tr>
+      </table>
+    </div>
+  </section>
+
+  <!-- 9. LowKey 3 techniques -->
+  <section class="slide">
+    <div class="slide-inner">
+      <div class="eyebrow">LowKey가 결합하는 3가지 기법</div>
+      <h2>지금은 2/3 완료 상태입니다</h2>
+      <table>
+        <tr>
+          <th>기법</th>
+          <th>설명</th>
+          <th>상태</th>
+        </tr>
+        <tr>
+          <td>① 앙상블 공격</td>
+          <td class="muted">서로 다른 모델 4개를 동시에 공격해 전이성 확보</td>
+          <td class="status-no">미구현</td>
+        </tr>
+        <tr>
+          <td>② LPIPS 지각 손실</td>
+          <td class="muted">L∞ 제약 대신 사람 눈 기준 유사도를 직접 최적화</td>
+          <td class="status-no">미구현</td>
+        </tr>
+        <tr>
+          <td>③ 가우시안 스무딩</td>
+          <td class="muted">섭동을 부드럽게 만드는 후처리</td>
+          <td class="status-yes">구현 완료</td>
+        </tr>
+      </table>
+    </div>
+  </section>
+
+  <!-- 10. Roadmap -->
+  <section class="slide">
+    <div class="slide-inner">
+      <div class="eyebrow">앞으로 남은 단계</div>
+      <h2>로드맵</h2>
+      <div class="roadmap">
+        <div class="road-item">
+          <div class="step-num">1</div>
+          <div><h4>앙상블 공격 추가</h4><p>여러 얼굴 인식 모델에 동시 최적화, 전이성 실험</p></div>
+        </div>
+        <div class="road-item">
+          <div class="step-num">2</div>
+          <div><h4>LPIPS 지각 손실 도입</h4><p>네트워크 제약 없는 환경에서 가중치 확보 후 비교 실험</p></div>
+        </div>
+        <div class="road-item">
+          <div class="step-num">3</div>
+          <div><h4>실제 인식 성공/실패 테스트</h4><p>face_recognition / DeepFace로 직접 검증</p></div>
+        </div>
+        <div class="road-item">
+          <div class="step-num">4</div>
+          <div><h4>상용 API 실전 테스트</h4><p>Amazon Rekognition, Azure Face 대상 검증</p></div>
+        </div>
+        <div class="road-item">
+          <div class="step-num">5</div>
+          <div><h4>다른 보호 기법과의 결합 검토</h4><p>워터마킹 등과 병행 적용 효과 검증</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 11. Closing -->
+  <section class="slide">
+    <div class="slide-inner">
+      <div class="eyebrow">정리</div>
+      <h2>얼굴 인식 회피 ≠ 생성모델 방해</h2>
+      <p class="lead">서로 다른 AI, 서로 다른 개입 지점. 우리는 지금 얼굴 인식 파이프라인의<br>특징 추출 단계를 공격하는 LowKey/Fawkes 원리를 구현했고,<br>앙상블과 LPIPS를 더하면 논문과 거의 동일한 구현이 됩니다.</p>
+      <div class="title-meta">감사합니다</div>
+    </div>
+  </section>
+
+</div>
+
+<div class="nav">
+  <button id="prevBtn" aria-label="이전">‹</button>
+  <span class="counter" id="counter">1 / 11</span>
+  <button id="nextBtn" aria-label="다음">›</button>
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const total = slides.length;
+  let current = 0;
+
+  function render() {
+    slides.forEach((s, i) => s.classList.toggle('active', i === current));
+    document.getElementById('counter').textContent = (current + 1) + ' / ' + total;
+    document.getElementById('progress').style.width = ((current + 1) / total * 100) + '%';
+  }
+
+  function next() { if (current < total - 1) { current++; render(); } }
+  function prev() { if (current > 0) { current--; render(); } }
+
+  document.getElementById('nextBtn').addEventListener('click', next);
+  document.getElementById('prevBtn').addEventListener('click', prev);
+
+  window.addEventListener('keydown', (e) => {
+    if (['ArrowRight', 'PageDown', ' '].includes(e.key)) { next(); e.preventDefault(); }
+    if (['ArrowLeft', 'PageUp'].includes(e.key)) { prev(); e.preventDefault(); }
+  });
+
+  let touchStartX = null;
+  window.addEventListener('touchstart', (e) => { touchStartX = e.touches[0].clientX; });
+  window.addEventListener('touchend', (e) => {
+    if (touchStartX === null) return;
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    if (dx > 50) prev();
+    if (dx < -50) next();
+    touchStartX = null;
+  });
+
+  render();
+</script>
+
+</body>
+</html>

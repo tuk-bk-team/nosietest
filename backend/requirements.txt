@@ -1,0 +1,20 @@
+# 딥페이크 방지 백엔드 - 전체 의존성
+# 설치: pip install -r requirements.txt
+
+torch
+torchvision
+facenet-pytorch
+pillow
+numpy>=2.0,<3   # 안 박아두면 pip가 오래된 numpy(1.26.4)로 내려가며 소스 빌드를 시도해서 느려짐
+scikit-image
+
+# --- PhotoGuard (생성모델 편집 방해) 용. HuggingFace 접속이 막혀있으면
+# 이 부분이 실패할 수 있지만, 나머지(앙상블 공격)는 정상 동작합니다. ---
+diffusers
+transformers
+accelerate
+
+# --- FastAPI 서버 (프론트엔드 연동용) ---
+fastapi
+uvicorn[standard]
+python-multipart

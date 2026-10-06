@@ -115,6 +115,24 @@ export default function Home() {
         <p className="mt-1 text-sm text-neutral-400">
           사진을 올리면 여러 종류/강도의 노이즈를 적용한 결과를 바로 비교해볼 수 있습니다. 모든 계산은 서버 없이 브라우저에서 처리됩니다.
         </p>
+        <a
+          href="/vector-attack"
+          className="mt-3 inline-block rounded-lg border border-neutral-700 px-3 py-1.5 text-xs font-medium text-neutral-300 hover:border-neutral-500 hover:text-white"
+        >
+          → LowKey/Fawkes 원리(벡터 기반) 데모 보러 가기
+        </a>
+        <a
+          href="/protection-lab"
+          className="ml-2 mt-3 inline-block rounded-lg border border-emerald-800 bg-emerald-950/40 px-3 py-1.5 text-xs font-medium text-emerald-200 hover:border-emerald-600"
+        >
+          → 통합 보호 실험실 (3가지 비교)
+        </a>
+        <a
+          href="/full-protect"
+          className="ml-2 mt-3 inline-block rounded-lg border border-sky-800 bg-sky-950/40 px-3 py-1.5 text-xs font-medium text-sky-200 hover:border-sky-600"
+        >
+          → 앙상블 + PhotoGuard 실제 적용 (백엔드 연동)
+        </a>
       </header>
 
       <main className="mx-auto max-w-7xl px-6 py-8">

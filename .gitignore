@@ -1,6 +1,17 @@
 .DS_Store
 
-# 실험용 개인 사진/결과 이미지는 기본적으로 커밋하지 않음
-backend/experiments/noise_test_results/
-backend/experiments/*.png
-backend/experiments/*.jpg
+# 파이썬 가상환경 / 실행 결과물 / 개인 테스트 사진 (backend/ 밑 어디에 있어도 매칭됨)
+venv/
+results/
+dex.jpeg
+
+# 가상환경 / 캐시 (용량 크고 레포에 불필요)
+venv/
+verify_venv/
+**/venv/
+**/verify_venv/
+__pycache__/
+*.pyc
+.DS_Store
+node_modules/
+.next/

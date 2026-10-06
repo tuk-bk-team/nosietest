@@ -32,6 +32,40 @@ export function computePSNR(a: ImageData, b: ImageData): number {
   return 10 * Math.log10((255 * 255) / mse);
 }
 
+export type PixelDeltaMetrics = {
+  meanAbsoluteError: number;
+  maxAbsoluteError: number;
+  changedPixelPercent: number;
+};
+
+/** Pixel-level change statistics; these describe image difference, not protection efficacy. */
+export function computePixelDelta(a: ImageData, b: ImageData): PixelDeltaMetrics {
+  if (a.width !== b.width || a.height !== b.height) {
+    throw new Error("비교할 두 이미지의 크기가 같아야 합니다.");
+  }
+
+  let absoluteSum = 0;
+  let maxAbsoluteError = 0;
+  let changedPixels = 0;
+  const pixelCount = a.width * a.height;
+  for (let i = 0; i < a.data.length; i += 4) {
+    let pixelChanged = false;
+    for (let c = 0; c < 3; c++) {
+      const difference = Math.abs(a.data[i + c] - b.data[i + c]);
+      absoluteSum += difference;
+      maxAbsoluteError = Math.max(maxAbsoluteError, difference);
+      pixelChanged ||= difference > 0;
+    }
+    if (pixelChanged) changedPixels++;
+  }
+
+  return {
+    meanAbsoluteError: absoluteSum / (pixelCount * 3),
+    maxAbsoluteError,
+    changedPixelPercent: pixelCount ? (changedPixels / pixelCount) * 100 : 0,
+  };
+}
+
 function toGrayscale(img: ImageData): Float64Array {
   const { width, height, data } = img;
   const gray = new Float64Array(width * height);
